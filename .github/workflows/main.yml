@@ -22,17 +22,10 @@ jobs:
       with:
         context: .
         push: false
-        tags: test-image:${{ github.sha }}
+        tags: kubsh:${{ github.sha }}  # ⬅️ Используем одно имя
+        load: true  # ⬅️ Важно! Загружаем образ локально
         
     - name: Run tests
-      continue-on-error: true
       run: |
-        docker run --rm test-image:${{ github.sha }}
-        
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-output
-        path: test-reports/
-        if-no-files-found: ignore
+        echo "Running container..."
+        docker run --rm kubsh:${{ github.sha }}  # ⬅️ То же самое имя
