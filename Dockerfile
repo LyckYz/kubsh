@@ -28,10 +28,9 @@ COPY Makefile /workspace/
 # Копируем тесты (если они есть)
 COPY /tests /opt/tests/
 
-# Компилируем проект
+# Компилируем проект (та же логика сборки)
 RUN set -e && \
     echo "=== Building shell ===" && \
-    # Проверяем систему сборки и компилируем
     if [ -f "configure" ]; then \
         ./configure; \
     elif [ -f "configure.ac" ]; then \
@@ -41,19 +40,20 @@ RUN set -e && \
     else \
         echo "Using existing Makefile"; \
     fi && \
-    # Компилируем
     make && \
-    # Создаем deb-пакет если есть соответствующая цель
     if make -n deb 2>/dev/null; then \
         make deb; \
     fi && \
     echo "=== Installing package ===" && \
-    # Устанавливаем пакет
     if [ -f "kubsh.deb" ]; then \
         apt-get update && apt-get install -y ./kubsh.deb; \
     elif [ -f "build/kubsh.deb" ]; then \
         apt-get install -y ./build/kubsh.deb; \
     fi
 
-# Команда для запуска тестов через CMD
-CMD ["bash", "-c", "cd /opt && if [ -d \"tests\" ]; then pytest -v --log-cli-level=10; else echo \"Tests not found in /opt/tests\"; find / -name \"*test*\" -type d | grep -E \"(test|tests)\" | head -5; fi"]
+# Скрипт для запуска тестов
+COPY run_tests.sh /usr/local/bin/run_tests.sh
+RUN chmod +x /usr/local/bin/run_tests.sh
+
+# Запускаем тесты через CMD
+CMD ["/usr/local/bin/run_tests.sh"]
