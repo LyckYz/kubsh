@@ -15,19 +15,45 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем тесты из оригинального контейнера (или устанавливаем их)
-# Если тесты доступны как pip пакет или из git
+# Устанавливаем pytest
 RUN pip3 install pytest
 
 # Создаем рабочую директорию
 WORKDIR /workspace
 
-# Копируем скрипт для запуска тестов
-COPY run_tests.sh /usr/local/bin/
-COPY /tests /opt/tests/
+# Копируем файлы проекта
 COPY main.cpp /workspace/
 COPY Makefile /workspace/
-RUN chmod +x /usr/local/bin/run_tests.sh
-RUN chmod a+rw /etc/passwd
 
-CMD ["bash", "-c", "/usr/local/bin/run_tests.sh; /bin/bash"]
+# Копируем тесты (если они есть)
+COPY /tests /opt/tests/
+
+# Компилируем проект
+RUN set -e && \
+    echo "=== Building shell ===" && \
+    # Проверяем систему сборки и компилируем
+    if [ -f "configure" ]; then \
+        ./configure; \
+    elif [ -f "configure.ac" ]; then \
+        autoreconf -i && ./configure; \
+    elif [ -f "CMakeLists.txt" ]; then \
+        mkdir -p build && cd build && cmake ..; \
+    else \
+        echo "Using existing Makefile"; \
+    fi && \
+    # Компилируем
+    make && \
+    # Создаем deb-пакет если есть соответствующая цель
+    if make -n deb 2>/dev/null; then \
+        make deb; \
+    fi && \
+    echo "=== Installing package ===" && \
+    # Устанавливаем пакет
+    if [ -f "kubsh.deb" ]; then \
+        apt-get update && apt-get install -y ./kubsh.deb; \
+    elif [ -f "build/kubsh.deb" ]; then \
+        apt-get install -y ./build/kubsh.deb; \
+    fi
+
+# Команда для запуска тестов через CMD
+CMD ["bash", "-c", "cd /opt && if [ -d \"tests\" ]; then pytest -v --log-cli-level=10; else echo \"Tests not found in /opt/tests\"; find / -name \"*test*\" -type d | grep -E \"(test|tests)\" | head -5; fi"]
