@@ -29,49 +29,14 @@ RUN chmod +x /usr/local/bin/run_tests.sh
 COPY main.cpp /workspace/
 COPY Makefile /workspace/
 
-# Копируем тесты (если папка tests существует)
-# Сначала проверяем есть ли папка tests, и только потом копируем
-RUN if [ -d "tests" ]; then \
-        echo "Copying tests directory to /opt/tests..." && \
-        cp -r tests /opt/tests; \
-    else \
-        echo "No tests directory found, creating minimal test structure..." && \
-        mkdir -p /opt/tests && \
-        echo "pytest" > /opt/tests/requirements.txt && \
-        cat > /opt/tests/test_minimal.py << 'EOF' && \
-#!/usr/bin/env python3
-import sys
-import os
+# Создаем папку для тестов (даже если она пустая)
+RUN mkdir -p /opt/tests
 
-def test_environment():
-    print("Testing environment...")
-    print(f"Python version: {sys.version}")
-    print(f"Current dir: {os.getcwd()}")
-    return True
-
-if __name__ == "__main__":
-    try:
-        test_environment()
-        print("✓ All checks passed")
-        sys.exit(0)
-    except Exception as e:
-        print(f"✗ Error: {e}")
-        sys.exit(1)
-EOF \
-        chmod +x /opt/tests/test_minimal.py; \
-    fi
+# Если есть папка tests локально - копируем ее содержимое
+COPY tests/ /opt/tests/ 2>/dev/null || echo "No test files to copy"
 
 # Компилируем проект
 RUN echo "=== Building shell ===" && \
-    if [ -f "configure" ]; then \
-        ./configure; \
-    elif [ -f "configure.ac" ]; then \
-        autoreconf -i && ./configure; \
-    elif [ -f "CMakeLists.txt" ]; then \
-        mkdir -p build && cd build && cmake ..; \
-    else \
-        echo "Using existing Makefile"; \
-    fi && \
     make && \
     if make -n deb 2>/dev/null; then \
         echo "Building deb package..." && \
@@ -85,7 +50,7 @@ RUN echo "=== Installing package ===" && \
     elif [ -f "build/kubsh.deb" ]; then \
         apt-get install -y ./build/kubsh.deb; \
     else \
-        echo "No deb package found, skipping installation"; \
+        echo "No deb package found"; \
     fi
 
 # Запускаем тесты через CMD
