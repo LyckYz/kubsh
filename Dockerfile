@@ -32,3 +32,6 @@ RUN mkdir -p /opt/tests
 
 # Запускаем тесты
 CMD ["/usr/local/bin/run_tests.sh"]
+
+# В конце Dockerfile добавьте:
+LABEL name="kubsh"
