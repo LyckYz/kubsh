@@ -1,22 +1,74 @@
-# 1. Убедитесь что run_tests.sh исполняемый
-chmod +x run_tests.sh
+name: CI/CD Pipeline
 
-# 2. Проверьте структуру файлов
-ls -la
-# Должно быть:
-# - Dockerfile
-# - run_tests.sh
-# - main.cpp
-# - Makefile
-# - tests/ (опционально)
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
 
-# 3. Постройте образ локально
-docker build -t test-image .
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
-# 4. Запустите тесты
-docker run --rm test-image
-
-# 5. Если все работает, запушите в репозиторий
-git add .
-git commit -m "Fix CI/CD pipeline"
-git push
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Verify files exist
+      run: |
+        echo "Checking project structure..."
+        ls -la
+        echo "---"
+        if [ -f "run_tests.sh" ]; then
+          echo "✓ run_tests.sh found"
+          chmod +x run_tests.sh
+        else
+          echo "✗ ERROR: run_tests.sh not found!"
+          exit 1
+        fi
+        if [ -f "Dockerfile" ]; then
+          echo "✓ Dockerfile found"
+        else
+          echo "✗ ERROR: Dockerfile not found!"
+          exit 1
+        fi
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: test-image:${{ github.sha }}
+        
+    - name: Run tests
+      id: tests
+      run: |
+        echo "Running container tests..."
+        docker run --rm test-image:${{ github.sha }}
+        
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-output
+        path: |
+          test-reports/
+          coverage.xml
+        if-no-files-found: ignore
+        
+    - name: Push to GHCR
+      if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
