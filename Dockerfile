@@ -21,14 +21,19 @@ RUN pip3 install pytest
 # Создаем рабочую директорию
 WORKDIR /workspace
 
+# Копируем скрипт для запуска тестов
+COPY run_tests.sh /usr/local/bin/run_tests.sh
+RUN chmod +x /usr/local/bin/run_tests.sh
+
 # Копируем файлы проекта
 COPY main.cpp /workspace/
 COPY Makefile /workspace/
 
-# Копируем тесты (если они есть)
-COPY /tests /opt/tests/
+# Копируем тесты (если папка tests существует)
+# Используем . чтобы игнорировать ошибку если папки нет
+COPY ./tests /opt/tests/ 2>/dev/null || echo "Note: No tests directory found, continuing..."
 
-# Компилируем проект (та же логика сборки)
+# Компилируем проект
 RUN set -e && \
     echo "=== Building shell ===" && \
     if [ -f "configure" ]; then \
@@ -50,10 +55,6 @@ RUN set -e && \
     elif [ -f "build/kubsh.deb" ]; then \
         apt-get install -y ./build/kubsh.deb; \
     fi
-
-# Скрипт для запуска тестов
-COPY run_tests.sh /usr/local/bin/run_tests.sh
-RUN chmod +x /usr/local/bin/run_tests.sh
 
 # Запускаем тесты через CMD
 CMD ["/usr/local/bin/run_tests.sh"]
