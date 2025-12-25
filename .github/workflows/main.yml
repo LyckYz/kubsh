@@ -17,7 +17,6 @@ jobs:
       
     - name: Save kubsh binary as artifact
       run: |
-        # Создаем артефакт - скомпилированный kubsh
         docker create --name temp kubsh
         docker cp temp:/workspace/kubsh ./kubsh-binary
         docker rm temp
