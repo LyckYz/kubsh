@@ -1,31 +1,44 @@
 name: CI/CD Pipeline
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
+    - uses: actions/checkout@v4
+    
     - name: Build Docker image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: false
-        tags: kubsh:${{ github.sha }}  # ⬅️ Используем одно имя
-        load: true  # ⬅️ Важно! Загружаем образ локально
-        
+      run: docker build -t kubsh .
+      
     - name: Run tests
+      run: docker run --rm kubsh
+      
+    - name: Save kubsh binary as artifact
       run: |
-        echo "Running container..."
-        docker run --rm kubsh:${{ github.sha }}  # ⬅️ То же самое имя
+        # Создаем артефакт - скомпилированный kubsh
+        docker create --name temp kubsh
+        docker cp temp:/workspace/kubsh ./kubsh-binary
+        docker rm temp
+        
+    - name: Upload kubsh binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: kubsh-binary
+        path: kubsh-binary
+        retention-days: 7
+        
+    - name: Create test report
+      run: |
+        echo "# Test Report" > report.md
+        echo "## Build Date: $(date)" >> report.md
+        echo "## Commit: ${{ github.sha }}" >> report.md
+        echo "## Status: ✅ PASSED" >> report.md
+        echo "Binary size: $(stat -c%s kubsh-binary 2>/dev/null || echo 'N/A') bytes" >> report.md
+        
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-report
+        path: report.md
